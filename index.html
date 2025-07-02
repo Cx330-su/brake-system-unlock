@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>刹车系统安全控制台</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Arial', sans-serif; }
+        body { background: #0c1a25; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        .container { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); width: 100%; max-width: 500px; border-radius: 15px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .header { background: rgba(0,0,0,0.3); padding: 25px; text-align: center; border-bottom: 1px solid #3a5f85; }
+        .header h1 { color: #fff; font-size: 28px; margin-bottom: 5px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        .header p { color: #89c4f4; }
+        .content { padding: 30px; }
+        .card { background: rgba(255,255,255,0.08); backdrop-filter: blur(10px); border-radius: 12px; padding: 25px; margin-bottom: 25px; border: 1px solid rgba(255,255,255,0.1); }
+        .input-group { margin-bottom: 20px; }
+        label { display: block; color: #89c4f4; margin-bottom: 10px; font-weight: 500; }
+        input { width: 100%; padding: 15px; background: rgba(0,0,0,0.3); border: 1px solid #3a5f85; border-radius: 8px; color: white; font-size: 16px; }
+        input:focus { outline: none; border-color: #3498db; box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.3); }
+        button { background: linear-gradient(90deg, #3498db, #2c81ba); color: white; border: none; padding: 16px; border-radius: 8px; font-size: 18px; font-weight: 600; cursor: pointer; width: 100%; transition: all 0.3s; }
+        button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        #report { display: none; background: rgba(0,0,0,0.2); padding: 25px; border-radius: 12px; margin-top: 25px; border: 1px solid rgba(52, 152, 219, 0.3); animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .error { color: #ff6b6b; text-align: center; margin-top: 15px; font-weight: 500; display: none; }
+        .nfc-info { color: #89c4f4; text-align: center; margin-top: 20px; font-size: 14px; }
+        .status-bar { display: flex; align-items: center; margin-bottom: 15px; }
+        .status-indicator { width: 12px; height: 12px; border-radius: 50%; background: #ff6b6b; margin-right: 10px; }
+        .status-indicator.active { background: #2ecc71; }
+        .footer { text-align: center; padding: 20px; color: #5d7a9c; font-size: 14px; border-top: 1px solid rgba(255,255,255,0.05); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>刹车系统安全控制台</h1>
+            <p>NFC ID: 04:82:75:3F:C1:2A:81</p >
+        </div>
+        
+        <div class="content">
+            <div class="card">
+                <div class="status-bar">
+                    <div class="status-indicator" id="nfcStatus"></div>
+                    <span>安全状态：<span id="statusText">未验证</span></span>
+                </div>
+                
+                <div class="input-group">
+                    <label for="accessCode">输入解锁指令：</label>
+                    <input type="password" id="accessCode" 
+                           placeholder="输入 BRK-III 解锁系统"
+                           autocomplete="off">
+                </div>
+                
+                <button onclick="unlockBrakeSystem()">验证指令</button>
+                
+                <div id="errorMsg" class="error">❌ 无效指令！安全协议启动</div>
+            </div>
+            
+            <div id="report" class="card">
+                <h2 style="color:#3498db; margin-bottom:20px;">刹车系统解锁报告</h2>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                    <div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px;">
+                        <h3 style="color:#89c4f4; margin-bottom:10px;">系统状态</h3>
+                        <p><span style="color:#2ecc71;">●</span> 液压压力: <b>1250 PSI</b></p >
+                        <p><span style="color:#2ecc71;">●</span> ABS功能: <b>激活</b></p >
+                        <p><span style="color:#2ecc71;">●</span> 制动液: <b>正常</b></p >
+                    </div>
+                    
+                    <div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px;">
+                        <h3 style="color:#89c4f4; margin-bottom:10px;">维护信息</h3>
+                        <p><span style="color:#f39c12;">●</span> 制动片磨损: <b>18%</b></p >
+                        <p><span style="color:#2ecc71;">●</span> 下次维护: <b>90天后</b></p >
+                        <p><span style="color:#2ecc71;">●</span> 最后检查: <b id="lastCheck"></b></p >
+                    </div>
+                </div>
+                
+                <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-top: 15px;">
+                    <h3 style="color:#89c4f4; margin-bottom:10px;">安全建议</h3>
+                    <ul style="padding-left: 20px; color: #ddd;">
+                        <li>定期检查制动液液位（每月一次）</li>
+                        <li>在潮湿环境下测试制动系统响应</li>
+                        <li>下次全面诊断：<b id="nextCheck"></b></li>
+                    </ul>
+                </div>
+                
+                <div style="margin-top: 20px; text-align: center;">
+                    <button onclick="location.reload()" style="background: rgba(0,0,0,0.3);">锁定系统</button>
+                </div>
+            </div>
+            
+            <div class="nfc-info">
+                已认证设备：NTAG213 | 序列号：04:82:75:3F:C1:2A:81
+            </div>
+        </div>
+        
+        <div class="footer">
+            安全系统 v2.3 | © 2023 车辆安全控制中心
+        </div>
+    </div>
+
+    <script>
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 模拟NFC连接状态
+            setTimeout(() => {
+                document.getElementById('nfcStatus').classList.add('active');
+                document.getElementById('statusText').textContent = "已连接";
+                document.getElementById('statusText').style.color = "#2ecc71";
+            }, 1500);
+        });
+        
+        function unlockBrakeSystem() {
+            const code = document.getElementById('accessCode').value;
+            const report = document.getElementById('report');
+            const errorMsg = document.getElementById('errorMsg');
+            const nfcStatus = document.getElementById('nfcStatus');
+            
+            // 清除状态
+            errorMsg.style.display = 'none';
+            nfcStatus.style.background = "#2ecc71";
+            
+            // 验证指令
+            if (code === 'BRK-III') {
+                // 显示报告
+                report.style.display = 'block';
+                
+                // 更新时间信息
+                const now = new Date();
+                const nextCheck = new Date();
+                nextCheck.setDate(now.getDate() + 90);
+                
+                document.getElementById('lastCheck').textContent = 
+                    now.toLocaleDateString('zh-CN');
+                    
+                document.getElementById('nextCheck').textContent = 
+                    nextCheck.toLocaleDateString('zh-CN');
+                
+                // 滚动到报告区域
+                report.scrollIntoView({ behavior: 'smooth' });
+            } else {
+                // 错误处理
+                errorMsg.style.display = 'block';
+                document.getElementById('accessCode').value = '';
+                nfcStatus.style.background = "#ff6b6b";
+                
+                // 震动反馈
+                if (navigator.vibrate) navigator.vibrate([100,50,100]);
+            }
+        }
+        
+        // 按Enter键提交
+        document.getElementById('accessCode').addEventListener('keyup', function(e) {
+            if (e.key === 'Enter') unlockBrakeSystem();
+        });
+    </script>
+</body>
+</html>
